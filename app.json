@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Habitat",
+    "slug": "habitat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0D1117",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.habitat.app"
+    },
+    "android": {
+      "package": "com.habitat.app"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-asset",
+      "expo-notifications",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}
