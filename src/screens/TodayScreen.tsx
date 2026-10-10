@@ -85,7 +85,9 @@ export const TodayScreen = ({ navigation }: TabScreenProps<'Today'>) => {
                   </View>
                   <View>
                     <Text style={styles.heroTitle}>{featured.title}</Text>
-                    <Text style={styles.heroSub}>Tap today to log</Text>
+                    <Text style={styles.heroSub}>
+                      {isScheduledToday(featured) ? 'Tap today to log' : 'Not scheduled today'}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.streakRight}>
@@ -152,6 +154,7 @@ export const TodayScreen = ({ navigation }: TabScreenProps<'Today'>) => {
                     <View>
                       <Text style={styles.habitTitle}>{habit.title}</Text>
                       <Text style={styles.habitSubtitle}>{habit.totalDaysCompleted} days</Text>
+                      {!scheduled && <Text style={styles.notScheduled}>Not scheduled today</Text>}
                     </View>
                   </View>
 
@@ -313,6 +316,7 @@ const styles = StyleSheet.create({
   },
   skeletonIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1F2937' },
   skeletonLine: { height: 12, borderRadius: 6, backgroundColor: '#1F2937' },
+  notScheduled: { fontSize: 10, color: '#64748B', marginTop: 2 },
   emptyText: { color: '#8B949E', textAlign: 'center', marginTop: 40, fontSize: 13 },
   fab: {
     position: 'absolute',

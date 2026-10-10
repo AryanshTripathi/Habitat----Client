@@ -25,3 +25,38 @@ export const scheduleSummary = (h: Habit) => {
 
 /** Which of the four bundled banners a habit uses: stable per habit, but spread across habits. */
 export const bannerIndexFor = (id: number) => Math.abs(id) % 4;
+
+/** Days as text: 'Every day', or runs of 3+ days collapsed, e.g. [0,1,3,4,5,6] -> 'Mon, Tue, Thu – Sun'. */
+export const dayRunsLabel = (days: number[]) => {
+  const sorted = [...days].sort((a, b) => a - b);
+  if (sorted.length === 7) return 'Every day';
+  const parts: string[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    if (j - i >= 2) parts.push(`${dayShort(sorted[i])} – ${dayShort(sorted[j])}`);
+    else for (let k = i; k <= j; k++) parts.push(dayShort(sorted[k]));
+    i = j + 1;
+  }
+  return parts.join(', ');
+};
+
+export interface ScheduleGroup {
+  days: number[];
+  startTime: string;
+  endTime: string;
+  label: string;
+}
+
+/** The schedule grouped by identical start/end times, earliest day first. */
+export const scheduleGroups = (h: Habit): ScheduleGroup[] => {
+  const byTimes = new Map<string, ScheduleGroup>();
+  for (const r of [...h.schedule].sort((a, b) => a.day - b.day)) {
+    const key = `${r.startTime}-${r.endTime}`;
+    const group = byTimes.get(key) ?? { days: [], startTime: r.startTime, endTime: r.endTime, label: '' };
+    group.days.push(r.day);
+    byTimes.set(key, group);
+  }
+  return [...byTimes.values()].map((g) => ({ ...g, label: dayRunsLabel(g.days) }));
+};

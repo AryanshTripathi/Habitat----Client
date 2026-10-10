@@ -14,10 +14,13 @@ import { HeroBanner } from '../components/HeroBanner';
 import { useThemeBg } from '../theme';
 import { RootStackScreenProps } from '../navigation/types';
 import { formatMonthYear, heatmapWeekStarts } from '../utils/dates';
-import { isScheduledToday } from '../utils/habits';
+import { isScheduledToday, scheduleGroups } from '../utils/habits';
+import { accentOf, hexToRgba } from '../utils/colors';
 import { MILESTONE_LADDER, milestoneLabel, nextMilestone } from '../utils/milestones';
+import { timeRange } from '../utils/time';
 
 const DAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DAY_BADGES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 export const HabitDetailScreen = ({ route, navigation }: RootStackScreenProps<'HabitDetail'>) => {
   const { habitId } = route.params;
@@ -52,6 +55,8 @@ export const HabitDetailScreen = ({ route, navigation }: RootStackScreenProps<'H
   const weekStarts = heatmapWeekStarts();
   const upcoming = nextMilestone(habit.currentStreak);
   const scheduledToday = isScheduledToday(habit);
+  const groups = scheduleGroups(habit);
+  const accent = accentOf(habit);
 
   const heatmap = habit.heatmap;
   const flat = heatmap ? heatmap.flat() : [];
@@ -105,6 +110,39 @@ export const HabitDetailScreen = ({ route, navigation }: RootStackScreenProps<'H
               {habit.notes ? <Text style={styles.notesText}>{habit.notes}</Text> : null}
             </View>
           )}
+
+          {/* Which days the habit runs on, and when: one block per group of days sharing the same time */}
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>HABIT SCHEDULE</Text>
+            {groups.length === 0 && <Text style={styles.schedEmpty}>No days scheduled.</Text>}
+            {groups.map((g) => (
+              <View
+                key={`${g.startTime}-${g.endTime}`}
+                style={[
+                  styles.schedBlock,
+                  { backgroundColor: hexToRgba(accent, 0.1), borderColor: hexToRgba(accent, 0.28), borderLeftColor: accent },
+                ]}
+              >
+                <View style={styles.schedTop}>
+                  <Text style={styles.schedDays}>{g.label}</Text>
+                  <View style={styles.schedBadges}>
+                    {g.days.map((day) => (
+                      <View key={day} style={[styles.dayBadge, { backgroundColor: hexToRgba(accent, 0.22) }]}>
+                        <Text style={[styles.dayBadgeText, { color: accent }]}>{DAY_BADGES[day]}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+                <View style={styles.schedBottom}>
+                  <View style={styles.schedTimeRow}>
+                    <Ionicons name="time-outline" size={16} color={accent} />
+                    <Text style={styles.schedTime}>{timeRange(g.startTime, g.endTime)}</Text>
+                  </View>
+                  <Ionicons name={habit.icon as any} size={18} color={accent} />
+                </View>
+              </View>
+            ))}
+          </View>
 
           {/* Monthly Activity Heatmap Grid */}
           <View style={styles.card}>
@@ -288,6 +326,25 @@ const styles = StyleSheet.create({
   cell: { flex: 1, height: 26, borderRadius: 5, backgroundColor: '#1A222D' },
   cellDone: { backgroundColor: '#10B981' },
   cellMissed: { backgroundColor: '#EF4444' },
+  sectionLabel: { fontSize: 12, fontWeight: '700', color: '#E2E8F0', letterSpacing: 0.8, marginBottom: 12 },
+  schedEmpty: { fontSize: 12, color: '#94A3B8' },
+  schedBlock: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    marginBottom: 8,
+  },
+  schedTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  schedDays: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+  schedBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dayBadge: { minWidth: 24, height: 20, borderRadius: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  dayBadgeText: { fontSize: 9, fontWeight: '700' },
+  schedBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  schedTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  schedTime: { fontSize: 15, fontWeight: '600', color: '#F0F6FC' },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: '#1A222D', borderWidth: 1, borderColor: '#26303D' },
   tagText: { fontSize: 11, color: '#94A3B8' },
