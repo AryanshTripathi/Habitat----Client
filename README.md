@@ -14,6 +14,15 @@ This repository is the mobile client. The API lives in the [server repository](h
   validates input, local reminders                       "today" in the user's time zone
 ```
 
+<table>
+  <tr>
+    <td align="center"><img src="assets/screenshots/today.png" width="200" alt="Today"><br><sub>Today</sub></td>
+    <td align="center"><img src="assets/screenshots/schedule.png" width="200" alt="Schedule"><br><sub>Schedule</sub></td>
+    <td align="center"><img src="assets/screenshots/progress.png" width="200" alt="Progress"><br><sub>Progress</sub></td>
+    <td align="center"><img src="assets/screenshots/habits.png" width="200" alt="Habits"><br><sub>Habits</sub></td>
+  </tr>
+</table>
+
 ## Design decisions
 
 ### Storing completion dates only, not a full daily log
@@ -171,20 +180,13 @@ The project is tested in three layers — plain unit tests on the domain model (
 
 <table>
   <tr>
-    <td align="center"><img src="assets/screenshots/today.png" width="180" alt="Today"><br><sub>Today</sub></td>
-    <td align="center"><img src="assets/screenshots/schedule.png" width="180" alt="Schedule"><br><sub>Schedule</sub></td>
-    <td align="center"><img src="assets/screenshots/progress.png" width="180" alt="Progress"><br><sub>Progress</sub></td>
-    <td align="center"><img src="assets/screenshots/habits.png" width="180" alt="Habits"><br><sub>Habits</sub></td>
-  </tr>
-  <tr>
     <td align="center"><img src="assets/screenshots/detail.png" width="180" alt="Habit Detail"><br><sub>Habit Detail</sub></td>
     <td align="center"><img src="assets/screenshots/create.png" width="180" alt="Create / Edit Habit"><br><sub>Create / Edit</sub></td>
     <td align="center"><img src="assets/screenshots/settings.png" width="180" alt="Settings"><br><sub>Settings</sub></td>
-    <td></td>
   </tr>
 </table>
 
-<sub>Screenshots are from the web build with demo data.</sub>
+<sub>Today, Schedule, Progress and Habits are shown at the top of this page. Screenshots are from the web build with demo data.</sub>
 
 | Tab / screen | What it does |
 |---|---|
