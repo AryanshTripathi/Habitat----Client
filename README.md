@@ -279,4 +279,5 @@ The server should enforce the same rules; the client check does not protect it f
 - Web has no native time picker (a plain `HH:mm` field is used) and no scheduled notifications.
 - Staleness windows of the saved copy are described above; there is no polling.
 - Writes need a connected server; there is no offline queue.
+- Single user application
 
