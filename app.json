@@ -18,6 +18,11 @@
       "expo-asset",
       "expo-notifications",
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "87de76f7-1c94-4b61-a729-3e13cff1b9bc"
+      }
+    }
   }
 }

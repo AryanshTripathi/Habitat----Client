@@ -1,20 +1,27 @@
-import { API_BASE_URL, REQUEST_TIMEOUT_MS } from './config';
+import { API_BASE_URL, REQUEST_TIMEOUT_MS, WAKE_TIMEOUT_MS } from './config';
 import { HabitDetailDto, HabitDto, HabitRequestDto, ScheduleTodayRowDto } from './types';
+import { assertValidHabit } from './validation';
+import { ApiError } from './errors';
+import { getTimeZone, TIMEZONE_HEADER } from './timezone';
 
-/** An HTTP or network failure with a message that's safe to show the user. */
-export class ApiError extends Error {
-  constructor(message: string, public status?: number) {
-    super(message);
-  }
-}
+export { ApiError };
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** Every request says which time zone the user is in, so the server can work out "today" for them. */
+const headers = (hasBody: boolean): Record<string, string> => {
+  const h: Record<string, string> = {};
+  const tz = getTimeZone();
+  if (tz) h[TIMEZONE_HEADER] = tz;
+  if (hasBody) h['Content-Type'] = 'application/json';
+  return h;
+};
+
+async function request<T>(method: string, path: string, body?: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      headers: headers(body !== undefined),
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
@@ -45,10 +52,17 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  getHabits: () => request<HabitDto[]>('GET', '/habits'),
+  getHabits: () => request<HabitDto[]>('GET', '/habits', undefined, WAKE_TIMEOUT_MS),
   getHabit: (id: number) => request<HabitDetailDto>('GET', `/habits/${id}`),
-  createHabit: (body: HabitRequestDto) => request<HabitDto>('POST', '/habits', body),
-  updateHabit: (id: number, body: HabitRequestDto) => request<HabitDto>('PUT', `/habits/${id}`, body),
+  // Every write is checked first, so invalid data is never sent.
+  createHabit: (body: HabitRequestDto) => {
+    assertValidHabit(body);
+    return request<HabitDto>('POST', '/habits', body);
+  },
+  updateHabit: (id: number, body: HabitRequestDto) => {
+    assertValidHabit(body);
+    return request<HabitDto>('PUT', `/habits/${id}`, body);
+  },
   deleteHabit: (id: number) => request<void>('DELETE', `/habits/${id}`),
   completeHabit: (id: number) => request<HabitDto>('POST', `/habits/complete/${id}`),
   undoHabit: (id: number) => request<HabitDto>('POST', `/habits/undo/${id}`),

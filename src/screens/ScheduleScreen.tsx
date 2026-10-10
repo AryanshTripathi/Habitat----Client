@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,8 +10,12 @@ import { api } from '../api/client';
 import { ScheduleItem, scheduleItemFromDto } from '../api/mappers';
 import { formatToday } from '../utils/dates';
 import { formatTime, timeRange } from '../utils/time';
+import { todayRow } from '../utils/habits';
 
-/** Today's schedule from GET /schedule/today (already ordered by start time). */
+/**
+ * Today's schedule from GET /schedule/today (already ordered by start time). Until that answers (the server may be
+ * waking up), it's computed from the habits already on screen, so the tab is never empty while loading.
+ */
 export const ScheduleScreen = ({ navigation }: TabScreenProps<'Schedule'>) => {
   const { habits, toggleHabitToday } = useHabits();
   const bg = useThemeBg();
@@ -26,6 +30,26 @@ export const ScheduleScreen = ({ navigation }: TabScreenProps<'Schedule'>) => {
       setError((e as Error).message);
     }
   }, []);
+
+  const derived = useMemo<ScheduleItem[]>(
+    () =>
+      habits
+        .map((h) => ({ h, row: todayRow(h) }))
+        .filter((x): x is { h: typeof x.h; row: NonNullable<typeof x.row> } => !!x.row)
+        .sort((a, b) => a.row.startTime.localeCompare(b.row.startTime))
+        .map(({ h, row }) => ({
+          habitId: h.id,
+          title: h.title,
+          icon: h.icon,
+          color: h.color,
+          description: h.description,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          completedToday: h.completedToday,
+        })),
+    [habits]
+  );
+  const shown = items ?? derived;
 
   // Refresh whenever the tab is shown, so edits made elsewhere appear.
   useFocusEffect(
@@ -45,15 +69,17 @@ export const ScheduleScreen = ({ navigation }: TabScreenProps<'Schedule'>) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {items === null && !error && <ActivityIndicator color="#34D399" style={{ marginTop: 40 }} />}
-        {error && (
+        {items === null && !error && habits.length === 0 && <ActivityIndicator color="#34D399" style={{ marginTop: 40 }} />}
+        {error && items === null && derived.length === 0 && habits.length === 0 && (
           <TouchableOpacity onPress={load}>
             <Text style={styles.empty}>{error}{'\n'}Tap to retry.</Text>
           </TouchableOpacity>
         )}
-        {items?.length === 0 && <Text style={styles.empty}>Nothing scheduled today.</Text>}
+        {shown.length === 0 && (items !== null || habits.length > 0) && (
+          <Text style={styles.empty}>Nothing scheduled today.</Text>
+        )}
 
-        {(items ?? []).map((item, index, all) => {
+        {shown.map((item, index, all) => {
           const accent = COLOR_HEX[item.color];
           const done = isDone(item);
           const isLast = index === all.length - 1;

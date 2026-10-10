@@ -21,7 +21,7 @@ import { milestoneLabel, milestoneProgress, nextMilestone } from '../utils/miles
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export const TodayScreen = ({ navigation }: TabScreenProps<'Today'>) => {
-  const { habits, profile, toggleHabitToday, reload } = useHabits();
+  const { habits, profile, toggleHabitToday, reload, status } = useHabits();
   const [refreshing, setRefreshing] = useState(false);
   const bg = useThemeBg();
   const featured = pickFeatured(habits);
@@ -54,7 +54,20 @@ export const TodayScreen = ({ navigation }: TabScreenProps<'Today'>) => {
             />
           }
         >
-          {habits.length === 0 && (
+          {habits.length === 0 && status === 'loading' && (
+            <>
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={styles.skeletonCard}>
+                  <View style={styles.skeletonIcon} />
+                  <View style={{ flex: 1, gap: 8 }}>
+                    <View style={[styles.skeletonLine, { width: '45%' }]} />
+                    <View style={[styles.skeletonLine, { width: '25%', height: 8 }]} />
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+          {habits.length === 0 && status !== 'loading' && (
             <Text style={styles.emptyText}>No habits yet — tap + to add one.</Text>
           )}
 
@@ -287,6 +300,19 @@ const styles = StyleSheet.create({
   progressContainer: { marginTop: 8, paddingLeft: 50 },
   progressBarBg: { height: 6, backgroundColor: '#232D3B', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 3 },
+  skeletonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#161D26',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#26303D',
+    opacity: 0.7,
+  },
+  skeletonIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1F2937' },
+  skeletonLine: { height: 12, borderRadius: 6, backgroundColor: '#1F2937' },
   emptyText: { color: '#8B949E', textAlign: 'center', marginTop: 40, fontSize: 13 },
   fab: {
     position: 'absolute',

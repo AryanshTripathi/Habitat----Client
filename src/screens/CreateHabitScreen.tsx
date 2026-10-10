@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { useHabits } from '../context/HabitContext';
+import { useHabits, HabitDraft } from '../context/HabitContext';
+import { requestFromDraft } from '../api/mappers';
+import { Field, LIMITS, validateHabitRequest } from '../api/validation';
 import { HabitColor, HabitFrequency } from '../types';
 import { RootStackScreenProps } from '../navigation/types';
 import { useThemeBg } from '../theme';
 import { COLOR_HEX, COLOR_KEYS, DEFAULT_COLOR } from '../utils/colors';
-import { dayShort, formatTime, hhmmToDate, isEndAfterStart, suggestEnd, toHHmm } from '../utils/time';
+import { dayShort, defaultEnd, formatTime, hhmmToDate, isEndAfterStart, shiftEnd, toHHmm } from '../utils/time';
 
 const FREQUENCIES: HabitFrequency[] = ['Daily', 'Weekly'];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -51,7 +53,8 @@ const ICONS = [
   'flame-outline',
 ];
 
-type Times = { start: string; end: string | null };
+type Times = { start: string; end: string };
+const DEFAULT_TIMES: Times = { start: DEFAULT_START, end: defaultEnd(DEFAULT_START) };
 type PickerTarget = { day: number; field: 'start' | 'end' };
 
 export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'CreateHabit'>) => {
@@ -75,10 +78,11 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
     if (existing) {
       return Object.fromEntries(existing.schedule.map((r) => [r.day, { start: r.startTime, end: r.endTime }]));
     }
-    return Object.fromEntries(ALL_DAYS.map((d) => [d, { start: DEFAULT_START, end: null }]));
+    return Object.fromEntries(ALL_DAYS.map((d) => [d, { ...DEFAULT_TIMES }]));
   });
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false); // errors show only after the first Save attempt, then stay live
 
   const selectedDays = Object.keys(times).map(Number).sort((a, b) => a - b);
 
@@ -86,7 +90,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
     setFrequency(f);
     if (f === 'Daily') {
       // Daily means all 7 days; new days copy the first existing row's times.
-      const base = times[selectedDays[0]] ?? { start: DEFAULT_START, end: null };
+      const base = times[selectedDays[0]] ?? DEFAULT_TIMES;
       setTimes(Object.fromEntries(ALL_DAYS.map((d) => [d, times[d] ?? { ...base }])));
     }
   };
@@ -97,7 +101,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
       const next = { ...prev };
       if (next[d]) delete next[d];
       else {
-        const base = prev[selectedDays[0]] ?? { start: DEFAULT_START, end: null };
+        const base = prev[selectedDays[0]] ?? DEFAULT_TIMES;
         next[d] = { ...base };
       }
       return next;
@@ -110,19 +114,27 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
     setTimes(Object.fromEntries(selectedDays.map((d) => [d, { ...base }])));
   };
 
-  /** Applies a picked time unless it would make the end time fall on or before the start time (same day only). */
+  /**
+   * Moving the start moves the end with it (same length, capped at 12:00 AM). Setting the end directly is refused if
+   * it isn't after the start on the same day; the only way to reach midnight is 12:00 AM (00:00).
+   */
   const setTime = (target: PickerTarget, value: string) => {
     const current = times[target.day];
-    const start = target.field === 'start' ? value : current.start;
-    const end = target.field === 'end' ? value : current.end;
-    if (end && !isEndAfterStart(start, end)) {
+    if (target.field === 'start') {
+      setTimes((prev) => ({
+        ...prev,
+        [target.day]: { start: value, end: shiftEnd(current.start, current.end, value) },
+      }));
+      return;
+    }
+    if (!isEndAfterStart(current.start, value)) {
       Alert.alert(
         'Check the times',
-        `${dayShort(target.day)}: the end time must be after the start time and on the same day. A habit can't run past midnight.`
+        `${dayShort(target.day)}: the end time must be after the start time, on the same day. Use 12:00 AM for the end of the day.`
       );
       return;
     }
-    setTimes((prev) => ({ ...prev, [target.day]: { ...prev[target.day], start, end } }));
+    setTimes((prev) => ({ ...prev, [target.day]: { ...prev[target.day], end: value } }));
   };
 
   const onPick = (target: PickerTarget, event: { type: string }, date?: Date) => {
@@ -136,7 +148,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
   const [webText, setWebText] = useState('');
   const openPicker = (target: PickerTarget) => {
     const t = times[target.day];
-    setWebText((target.field === 'start' ? t.start : t.end) ?? '');
+    setWebText(target.field === 'start' ? t.start : t.end);
     setPicker(target);
   };
   const applyWebTime = () => {
@@ -149,39 +161,41 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
     setPicker(null);
   };
 
-  const handleSave = async () => {
-    if (!title.trim()) {
-      Alert.alert('Title needed', 'Give the habit a title.');
-      return;
-    }
-    if (selectedDays.length === 0) {
-      Alert.alert('Pick at least one day', 'Choose the days this habit runs on.');
-      return;
-    }
-    const bad = selectedDays.find((d) => times[d].end && !isEndAfterStart(times[d].start, times[d].end!));
-    if (bad !== undefined) {
-      Alert.alert(
-        'Check the times',
-        `${dayShort(bad)}: the end time must be after the start time and on the same day. A habit can't run past midnight.`
-      );
-      return;
-    }
+  const buildDraft = (): HabitDraft => ({
+    title: title.trim(),
+    description: description.trim(),
+    notes: notes.trim(),
+    icon,
+    color,
+    unitLabel: unitLabel.trim(),
+    tags: Array.from(
+      new Set(
+        tagsText
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    ),
+    frequency,
+    reminderEnabled,
+    schedule: selectedDays.map((day) => ({ day, startTime: times[day].start, endTime: times[day].end })),
+  });
 
-    const draft = {
-      title: title.trim(),
-      description: description.trim(),
-      notes: notes.trim(),
-      icon,
-      color,
-      unitLabel: unitLabel.trim() || 'Days completed',
-      tags: tagsText
-        .split(',')
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean),
-      frequency,
-      reminderEnabled,
-      schedule: selectedDays.map((day) => ({ day, startTime: times[day].start, endTime: times[day].end })),
-    };
+  // The same rules the API layer enforces before any POST or PUT, shown here next to the fields.
+  const errors = submitted ? validateHabitRequest(requestFromDraft(buildDraft(), title.trim(), true)) : [];
+  const renderErr = (field: Field) =>
+    errors
+      .filter((e) => e.field === field)
+      .map((e) => (
+        <Text key={e.message} style={styles.error}>
+          {e.message}
+        </Text>
+      ));
+
+  const handleSave = async () => {
+    setSubmitted(true);
+    const draft = buildDraft();
+    if (validateHabitRequest(requestFromDraft(draft, draft.title, true)).length > 0) return;
     setSaving(true);
     const ok = existing ? await updateHabit(existing.id, draft) : await createHabit(draft);
     setSaving(false);
@@ -204,23 +218,28 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
           <TextInput
             style={[styles.input, existing && styles.inputLocked]}
             value={title}
+            maxLength={LIMITS.title}
             onChangeText={setTitle}
             editable={!existing}
             placeholder="e.g. Read"
             placeholderTextColor="#64748B"
           />
           {existing && <Text style={styles.hint}>The title can't be changed after a habit is created.</Text>}
+          {renderErr('title')}
 
           <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={description}
+            maxLength={LIMITS.description}
             onChangeText={setDescription}
             placeholder="What does this habit involve?"
             placeholderTextColor="#64748B"
             multiline
             numberOfLines={3}
           />
+
+          {renderErr('description')}
 
           <Text style={styles.label}>Frequency</Text>
           <View style={styles.freqRow}>
@@ -267,17 +286,8 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
                         style={styles.timeBtn}
                         onPress={() => openPicker({ day: d, field: 'end' })}
                       >
-                        <Text style={[styles.timeText, !times[d].end && styles.timeMuted]}>
-                          {times[d].end ? formatTime(times[d].end!) : 'Add end'}
-                        </Text>
+                        <Text style={styles.timeText}>{formatTime(times[d].end)}</Text>
                       </TouchableOpacity>
-                      {times[d].end && (
-                        <TouchableOpacity
-                          onPress={() => setTimes((p) => ({ ...p, [d]: { ...p[d], end: null } }))}
-                        >
-                          <Ionicons name="close-circle" size={16} color="#64748B" />
-                        </TouchableOpacity>
-                      )}
                     </View>
                   ) : (
                     <Text style={styles.offText}>Off</Text>
@@ -286,6 +296,9 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
               );
             })}
           </View>
+
+          {renderErr('schedule')}
+          {renderErr('frequency')}
 
           {picker && times[picker.day] && Platform.OS === 'web' && (
             <View style={styles.webTimeBox}>
@@ -317,11 +330,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
                 mode="time"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 themeVariant="dark"
-                value={hhmmToDate(
-                  picker.field === 'start'
-                    ? times[picker.day].start
-                    : times[picker.day].end ?? suggestEnd(times[picker.day].start)
-                )}
+                value={hhmmToDate(picker.field === 'start' ? times[picker.day].start : times[picker.day].end)}
                 onChange={(e, date) => onPick(picker, e, date)}
               />
               {Platform.OS === 'ios' && (
@@ -346,6 +355,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
           </View>
 
           <Text style={styles.label}>Color</Text>
+          {renderErr('color')}
           <View style={styles.colorRow}>
             {COLOR_KEYS.map((c) => (
               <TouchableOpacity
@@ -357,6 +367,7 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
           </View>
 
           <Text style={styles.label}>Icon Selection</Text>
+          {renderErr('icon')}
           <View style={styles.iconGrid}>
             {ICONS.map((i) => (
               <TouchableOpacity
@@ -373,10 +384,13 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
           <TextInput
             style={styles.input}
             value={unitLabel}
+            maxLength={LIMITS.unitLabel}
             onChangeText={setUnitLabel}
             placeholder="Days completed"
             placeholderTextColor="#64748B"
           />
+
+          {renderErr('unitLabel')}
 
           <Text style={styles.label}>Tags</Text>
           <TextInput
@@ -388,14 +402,23 @@ export const CreateHabitScreen = ({ route, navigation }: RootStackScreenProps<'C
             autoCapitalize="none"
           />
 
+          {renderErr('tags')}
+
           <Text style={styles.label}>Notes</Text>
           <TextInput
             style={styles.input}
             value={notes}
+            maxLength={LIMITS.notes}
             onChangeText={setNotes}
             placeholder="Goal notes"
             placeholderTextColor="#64748B"
           />
+
+          {renderErr('notes')}
+
+          {errors.length > 0 && (
+            <Text style={styles.error}>Fix the {errors.length === 1 ? 'issue' : `${errors.length} issues`} above to save.</Text>
+          )}
 
           <View style={styles.actionRow}>
             <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} disabled={saving} onPress={handleSave}>
@@ -425,6 +448,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   scrollContent: { padding: 16, gap: 10, paddingBottom: 50 },
   label: { fontSize: 12, fontWeight: '600', color: '#E2E8F0', marginTop: 6 },
+  error: { fontSize: 11, color: '#F87171', marginTop: 2 },
   hint: { fontSize: 11, color: '#8B949E', marginTop: 2 },
   link: { fontSize: 12, color: '#34D399', fontWeight: '600' },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

@@ -1,6 +1,7 @@
 import { DayStatus, Habit, ScheduleRow } from '../types';
 import { HabitDraft } from '../context/HabitContext';
 import { DEFAULT_COLOR } from '../utils/colors';
+import { defaultEnd } from '../utils/time';
 import {
   DayOfWeekDto,
   HabitDetailDto,
@@ -18,7 +19,8 @@ const hhmm = (t: string) => t.slice(0, 5);
 const scheduleFromDto = (s: ScheduleDto): ScheduleRow => ({
   day: DAYS.indexOf(s.dayOfWeek),
   startTime: hhmm(s.startTime),
-  endTime: s.endTime ? hhmm(s.endTime) : null,
+  // End time is required in the app; a row saved without one gets the default (start + 1 hour).
+  endTime: s.endTime ? hhmm(s.endTime) : defaultEnd(hhmm(s.startTime)),
 });
 
 const dayStatusFromDto = (s: 'DONE' | 'MISSED' | 'EMPTY'): DayStatus => s.toLowerCase() as DayStatus;

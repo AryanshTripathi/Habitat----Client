@@ -10,3 +10,5 @@ export const API_BASE_URL =
 
 // Free hosting spins the server down when idle, and waking it can take a minute or more.
 export const REQUEST_TIMEOUT_MS = 60000;
+/** The first list request after idle may have to wait out a full cold start. */
+export const WAKE_TIMEOUT_MS = 120000;

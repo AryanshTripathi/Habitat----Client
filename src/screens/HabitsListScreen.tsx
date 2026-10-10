@@ -17,7 +17,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 export const HabitsListScreen = ({ navigation }: TabScreenProps<'Habits'>) => {
-  const { habits, toggleHabitToday, deleteHabit } = useHabits();
+  const { habits, toggleHabitToday, deleteHabit, status } = useHabits();
   const bg = useThemeBg();
   const [filter, setFilter] = useState<Filter>('All');
 
@@ -61,7 +61,9 @@ export const HabitsListScreen = ({ navigation }: TabScreenProps<'Habits'>) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        {filtered.length === 0 && <Text style={styles.empty}>No habits here yet.</Text>}
+        {filtered.length === 0 && (
+          <Text style={styles.empty}>{status === 'loading' ? 'Loading your habits…' : 'No habits here yet.'}</Text>
+        )}
         {filtered.map((h) => (
           <TouchableOpacity
             key={h.id}

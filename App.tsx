@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -14,6 +14,7 @@ import { ProgressOverviewScreen } from './src/screens/ProgressOverviewScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { HabitsListScreen } from './src/screens/HabitsListScreen';
 import { ScheduleScreen } from './src/screens/ScheduleScreen';
+import { SyncBanner } from './src/components/SyncBanner';
 import { useHabits } from './src/context/HabitContext';
 import { THEME_BG } from './src/theme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
@@ -71,29 +72,21 @@ function Root() {
   const { profile, ready, status, error, reload } = useHabits();
   if (!ready) return null; // wait for the saved profile so the theme doesn't flash
 
-  if (status !== 'ready') {
+  // Nothing saved and the server unreachable: the only case that needs a full-screen message.
+  // (While it's merely loading, the app shell shows with skeleton placeholders and a status banner.)
+  if (status === 'error') {
     return (
       <View style={{ flex: 1, backgroundColor: THEME_BG[profile.themeVariant], alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <StatusBar style="light" />
-        {status === 'loading' ? (
-          <>
-            <ActivityIndicator size="large" color="#34D399" />
-            <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 14 }}>
-              Connecting to the server… the first load can take a minute if it was idle.
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>Can't load your habits</Text>
-            <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', marginBottom: 18 }}>{error}</Text>
-            <TouchableOpacity
-              onPress={reload}
-              style={{ backgroundColor: '#2D6857', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>Can't load your habits</Text>
+        <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', marginBottom: 6 }}>{error}</Text>
+        <Text style={{ color: '#64748B', fontSize: 12, textAlign: 'center', marginBottom: 18 }}>Retrying automatically…</Text>
+        <TouchableOpacity
+          onPress={reload}
+          style={{ backgroundColor: '#2D6857', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 }}
+        >
+          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry now</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -106,15 +99,18 @@ function Root() {
   return (
     <NavigationContainer theme={theme}>
       <StatusBar style="light" />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="MainTabs" component={BottomTabs} />
-        <Stack.Screen name="HabitDetail" component={HabitDetailScreen} />
-        <Stack.Screen
-          name="CreateHabit"
-          component={CreateHabitScreen}
-          options={{ presentation: 'modal' }}
-        />
-      </Stack.Navigator>
+      <View style={{ flex: 1 }}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="MainTabs" component={BottomTabs} />
+          <Stack.Screen name="HabitDetail" component={HabitDetailScreen} />
+          <Stack.Screen
+            name="CreateHabit"
+            component={CreateHabitScreen}
+            options={{ presentation: 'modal' }}
+          />
+        </Stack.Navigator>
+        <SyncBanner />
+      </View>
     </NavigationContainer>
   );
 }

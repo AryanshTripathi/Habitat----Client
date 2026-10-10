@@ -20,7 +20,7 @@ export type ThemeVariant = 'slate' | 'navy' | 'obsidian';
 export interface ScheduleRow {
   day: number; // 0 = Mon ... 6 = Sun
   startTime: string; // 'HH:mm'
-  endTime: string | null; // 'HH:mm'
+  endTime: string; // 'HH:mm'; required. 00:00 means the end of the day (12:00 AM)
 }
 
 export interface Habit {
